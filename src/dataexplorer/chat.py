@@ -1,18 +1,18 @@
 import streamlit as st
 import time
 import pandas as pd
-from langchain.chat_models import ChatOpenAI
+import matplotlib.pyplot as plt
+import seaborn as sns
+from anthropic import Anthropic
+from io import StringIO
 
-# Page d'accueil
 def create_homepage():
-    # Configuration de la page
     st.set_page_config(
         page_title="DataExplorer",
         page_icon="📊",
         layout="centered"
     )
 
-    # Custom CSS pour le style
     st.markdown("""
         <style>
         .title {
@@ -115,16 +115,13 @@ def create_homepage():
         </style>
     """, unsafe_allow_html=True)
 
-    # Titre principal
     st.markdown('<h1 class="title">DataExplorer</h1>', unsafe_allow_html=True)
 
-    # Description dans un cadre
     with st.container():
         st.markdown('<div class="description-box">', unsafe_allow_html=True)
         st.markdown('<p class="welcome-text">Bienvenue sur DataExplorer, votre assistant intelligent d\'analyse de données. Notre plateforme vous permet d\'explorer et de comprendre vos données tabulaires de manière intuitive grâce à l\'intelligence artificielle.</p>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # Bouton expandable pour les caractéristiques
     with st.expander("✨ Pourquoi utiliser notre produit ? ✨"):
         features = [
             "🔍 Chargez n'importe quel jeu de données tabulaire",
@@ -135,52 +132,72 @@ def create_homepage():
         for feature in features:
             st.markdown(f'<p class="feature-item">{feature}</p>', unsafe_allow_html=True)
 
-    # Espacement
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Bouton de démarrage
     st.markdown('<div class="start-button">', unsafe_allow_html=True)
     if st.button("Commencez votre exploration", type="primary", use_container_width=True):
         with st.spinner('Préparation de votre espace de travail...'):
             time.sleep(1.5)
-            st.session_state.page = "chat"  # Passage à la page de chat
-            st.rerun()  # Forcer le rechargement de la page
+            st.session_state.page = "chat"
+            st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Section de licence
     st.markdown('<div class="license">', unsafe_allow_html=True)
     st.markdown('<p>© 2025 DataExplorer. Tous droits réservés.</p>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-# Interface de chat
+
+
 def create_chat_interface():
-    # Configuration de la page (doit être la première commande Streamlit)
     st.set_page_config(
         page_title="DataExplorer - Chat",
         page_icon="📊",
         layout="wide"
     )
 
-    # CSS personnalisé
     st.markdown("""
         <style>
+        .chat-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .chat-message {
+            padding: 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+            position: relative;
+            animation: fadeIn 0.5s ease-in;
+        }
+        .user-message {
+            background-color: #e3f2fd;
+            margin-left: 100px;
+            margin-right: 20px;
+            border: 1px solid #bbdefb;
+        }
+        .assistant-message {
+            background-color: #f8f9fa;
+            margin-right: 100px;
+            margin-left: 20px;
+            border: 1px solid #e9ecef;
+        }
+        .message-header {
+            font-size: 0.8em;
+            color: #666;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .user-header {
+            color: #1976d2;
+        }
+        .assistant-header {
+            color: #900C3F;
+        }
+        .message-content {
+            line-height: 1.5;
+        }
         .sidebar-content {
             padding: 20px;
             color: #900C3F;
-        }
-        .chat-message {
-            padding: 20px;
-            border-radius: 10px;
-            margin: 10px 0;
-            background-color: #f8f9fa;
-            animation: fadeIn 0.5s ease-in;
-        }
-        .warning-box {
-            background-color: #fff3cd;
-            border-left: 5px solid #900C3F;
-            padding: 15px;
-            margin: 10px 0;
-            border-radius: 5px;
         }
         @keyframes fadeIn {
             from { opacity: 0; }
@@ -189,25 +206,18 @@ def create_chat_interface():
         </style>
     """, unsafe_allow_html=True)
 
-    # Sidebar pour les paramètres
+    # Initialisation de l'historique des messages
+    if 'messages' not in st.session_state:
+        st.session_state.messages = []
+
     with st.sidebar:
         st.markdown('<div class="sidebar-content">', unsafe_allow_html=True)
         st.title("⚙️ Paramètres")
 
-        # Sélection de la langue
         language = st.selectbox(
             "Choisissez votre langue",
             ["Français", "English", "Arabe"]
         )
-
-        # Sélection du modèle LLM
-        llm_model = st.selectbox(
-            "Choisissez votre modèle",
-            ["Claude"]
-        )
-
-        st.markdown("### 🔑 Entrez votre clé API")
-        claude_api_key = st.text_input("API Key", type="password")
 
         st.markdown("⚠️ **Important** :")
         st.markdown("""
@@ -217,45 +227,92 @@ def create_chat_interface():
         - Encodage recommandé : UTF-8
         """)
 
-        st.markdown('</div>', unsafe_allow_html=True)
+        if st.button("🔄 Nouvelle conversation"):
+            st.session_state.messages = []
+            st.rerun()
 
-    # Zone principale
     st.title("💬 Assistant DataExplorer")
+    st.markdown("👋 Bonjour ! Je suis votre assistant DataExplorer. Pour commencer, veuillez télécharger votre fichier de données au format CSV.")
 
-    # Message de bienvenue initial
-    if 'welcomed' not in st.session_state:
-        st.markdown('<div class="chat-message">', unsafe_allow_html=True)
-        st.markdown("""
-        👋 Bonjour ! Je suis votre assistant DataExplorer.
-        
-        Pour commencer, veuillez télécharger votre fichier de données au format CSV.
-        """)
-        st.markdown('</div>', unsafe_allow_html=True)
-        st.session_state.welcomed = True
-
-    # Zone d'upload de fichier
+    # Chargement du fichier CSV
     uploaded_file = st.file_uploader("Choisissez votre fichier CSV", type=['csv'])
 
-    # Si un fichier est uploadé
     if uploaded_file is not None:
-        df = pd.read_csv(uploaded_file)
-        st.success("✅ Fichier reçu ! Voici un aperçu des données :")
-        st.dataframe(df.head())
-        
-        # Zone de chat
-        st.markdown("### 💭 Posez vos questions sur les données")
-        user_question = st.text_input("Votre question :")
-        
-        if user_question:
-            with st.spinner('Analyse en cours...'):
-                if claude_api_key:
-                    llm = ChatOpenAI(model_name="claude", openai_api_key=claude_api_key)
-                    response = llm.generate(user_question)
-                    st.markdown(response)
-                else:
-                    st.error("Veuillez entrer une clé API valide.")
+        if 'data_loaded' not in st.session_state:
+            df = pd.read_csv(uploaded_file)
+            st.session_state.df = df
+            st.session_state.data_loaded = True
 
-# Fonction principale pour gérer la navigation
+
+        # Affichage du message de réception du fichier
+        st.markdown("✅ Fichier reçu ! Voici un aperçu des données :")
+
+        # Affichage du tableau des données
+        st.dataframe(st.session_state.df.head())
+
+        # Message demandant à poser une question
+        st.markdown("💡 Posez vos questions sur les données fournies.")
+
+        # Affichage des messages existants
+        st.markdown('<div class="chat-container">', unsafe_allow_html=True)
+        for message in st.session_state.messages:
+            message_class = "assistant-message" if message['role'] == 'assistant' else "user-message"
+            header_class = "assistant-header" if message['role'] == 'assistant' else "user-header"
+            header_text = "🤖 Assistant" if message['role'] == 'assistant' else "👤 Vous"
+            
+            st.markdown(f'''
+                <div class="chat-message {message_class}">
+                    <div class="message-header {header_class}">{header_text}</div>
+                    <div class="message-content">{message['content']}</div>
+                </div>
+            ''', unsafe_allow_html=True)
+
+            if 'figure' in message:
+                st.pyplot(message['figure'])
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        # Zone de saisie utilisateur
+        user_question = st.chat_input("💭 Posez votre question...")
+
+        if user_question:
+            # Ajout du message utilisateur
+            st.session_state.messages.append({
+                'role': 'user',
+                'content': user_question
+            })
+
+            with st.spinner('Analyse en cours...'):
+                sample_data = st.session_state.df.head(50).to_csv(index=False)
+                client = Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
+
+                prompt = f""" 
+                    Données d'exemple :
+                    {sample_data}
+                    Question : {user_question}
+                    Si l'utilisateur demande "hello", répondez par une salutation et demandez-lui s'il est prêt à commencer l'analyse des données.
+                    Si l'utilisateur demande "describe data", générez une description des données fournies (par exemple, dimensions du dataset, types de colonnes, etc.).
+                    Si l'utilisateur pose une question comme "combien de ...", générez un graphique pertinent à cette question, comme un histogramme ou un graphique en barres.
+                    Si l'utilisateur pose d'autres questions, générez un script Python concis utilisant Matplotlib ou Seaborn pour visualiser les données de manière pertinente.
+                """
+
+                response = client.messages.create(
+                    model="claude-3-5-sonnet-20240620",
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=300
+                )
+
+                response_content = response.content[0].text
+                message_with_response = {
+                    'role': 'assistant',
+                    'content': response_content.strip()
+                }
+
+                st.session_state.messages.append(message_with_response)
+                st.rerun()
+
+
+
+
 def main():
     if 'page' not in st.session_state:
         st.session_state.page = "home"
