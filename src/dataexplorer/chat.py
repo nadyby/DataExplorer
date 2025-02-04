@@ -5,6 +5,13 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from anthropic import Anthropic
 from io import StringIO
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+
+
 
 def create_homepage():
     st.set_page_config(
@@ -282,7 +289,7 @@ def create_chat_interface():
 
             with st.spinner('Analyse en cours...'):
                 sample_data = st.session_state.df.head(50).to_csv(index=False)
-                client = Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
+                client = Anthropic(api_key=ANTHROPIC_API_KEY)
 
                 prompt = f""" 
                     Données d'exemple :
