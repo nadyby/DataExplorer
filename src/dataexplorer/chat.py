@@ -243,7 +243,6 @@ def create_chat_interface():
             st.session_state.df = df
             st.session_state.data_loaded = True
 
-
         # Affichage du message de réception du fichier
         st.markdown("✅ Fichier reçu ! Voici un aperçu des données :")
 
@@ -309,8 +308,6 @@ def create_chat_interface():
 
                 st.session_state.messages.append(message_with_response)
                 st.rerun()
-
-
 
 
 def main():
