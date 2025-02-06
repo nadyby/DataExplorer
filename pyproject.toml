@@ -8,11 +8,16 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "matplotlib (>=3.10.0,<4.0.0)",
+    "streamlit (>=1.42.0,<2.0.0)",
+    "pandas (>=2.2.3,<3.0.0)",
+    "seaborn (>=0.13.2,<0.14.0)",
+    "anthropic (>=0.45.2,<0.46.0)",
+    "numpy (>=2.2.2,<3.0.0)"
 ]
 
 [tool.poetry]
 packages = [{include = "dataexplorer", from = "src"}]
-
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
