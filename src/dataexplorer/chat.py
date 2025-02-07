@@ -1,16 +1,20 @@
 import streamlit as st
 import time
 import pandas as pd
+import matplotlib
 import matplotlib.pyplot as plt
 import seaborn as sns
-from anthropic import Anthropic
+from anthropic import Anthropic, InternalServerError
 from io import StringIO
+from utils import clean_dataset
+import re
+
+#Cle API
 from dotenv import load_dotenv
 import os
 
 load_dotenv()
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
-
 
 
 def create_homepage():
@@ -121,9 +125,7 @@ def create_homepage():
         }
         </style>
     """, unsafe_allow_html=True)
-
     st.markdown('<h1 class="title">DataExplorer</h1>', unsafe_allow_html=True)
-
     with st.container():
         st.markdown('<div class="description-box">', unsafe_allow_html=True)
         st.markdown('<p class="welcome-text">Bienvenue sur DataExplorer, votre assistant intelligent d\'analyse de données. Notre plateforme vous permet d\'explorer et de comprendre vos données tabulaires de manière intuitive grâce à l\'intelligence artificielle.</p>', unsafe_allow_html=True)
@@ -138,9 +140,7 @@ def create_homepage():
         
         for feature in features:
             st.markdown(f'<p class="feature-item">{feature}</p>', unsafe_allow_html=True)
-
     st.markdown("<br>", unsafe_allow_html=True)
-
     st.markdown('<div class="start-button">', unsafe_allow_html=True)
     if st.button("Commencez votre exploration", type="primary", use_container_width=True):
         with st.spinner('Préparation de votre espace de travail...'):
@@ -148,10 +148,22 @@ def create_homepage():
             st.session_state.page = "chat"
             st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
-
     st.markdown('<div class="license">', unsafe_allow_html=True)
     st.markdown('<p>© 2025 DataExplorer. Tous droits réservés.</p>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
+
+
+def format_conversation_history(messages):
+    formatted_history = []
+    for msg in messages:
+        if msg['role'] == 'user':
+            formatted_history.append(f"Question: {msg['content']}")
+        else:
+            content = msg['content']
+            if 'figure' in msg:
+                content += " [Visualisation générée]"
+            formatted_history.append(f"Réponse: {content}")
+    return "\n".join(formatted_history)
 
 
 
@@ -242,30 +254,34 @@ def create_chat_interface():
     st.markdown("👋 Bonjour ! Je suis votre assistant DataExplorer. Pour commencer, veuillez télécharger votre fichier de données au format CSV.")
 
     # Chargement du fichier CSV
-    uploaded_file = st.file_uploader("Choisissez votre fichier CSV", type=['csv'])
+    col1, col2 = st.columns([3, 1])
+    
+    with col1:
+        uploaded_file = st.file_uploader("Choisissez votre fichier CSV", type=['csv'])
+    
+    with col2:
+        clean_data_button = st.button("🧹 Nettoyer les données")
 
     if uploaded_file is not None:
-        if 'data_loaded' not in st.session_state:
+        if 'data_loaded' not in st.session_state or uploaded_file.name != st.session_state.get("last_uploaded_file"):
             df = pd.read_csv(uploaded_file)
+            st.session_state.original_df = df
             st.session_state.df = df
             st.session_state.data_loaded = True
-
-        # Affichage du message de réception du fichier
-        st.markdown("✅ Fichier reçu ! Voici un aperçu des données :")
-
-        # Affichage du tableau des données
+            st.session_state.last_uploaded_file = uploaded_file.name 
+        if clean_data_button:
+            try:
+                cleaned_df = clean_dataset(st.session_state.df)
+                st.session_state.df = cleaned_df
+                st.success("Données nettoyées avec succès !")
+            except Exception as e:
+                st.error(f"Erreur lors du nettoyage : {e}")
         st.dataframe(st.session_state.df.head())
-
-        # Message demandant à poser une question
-        st.markdown("💡 Posez vos questions sur les données fournies.")
-
-        # Affichage des messages existants
         st.markdown('<div class="chat-container">', unsafe_allow_html=True)
         for message in st.session_state.messages:
             message_class = "assistant-message" if message['role'] == 'assistant' else "user-message"
             header_class = "assistant-header" if message['role'] == 'assistant' else "user-header"
             header_text = "🤖 Assistant" if message['role'] == 'assistant' else "👤 Vous"
-            
             st.markdown(f'''
                 <div class="chat-message {message_class}">
                     <div class="message-header {header_class}">{header_text}</div>
@@ -275,52 +291,126 @@ def create_chat_interface():
 
             if 'figure' in message:
                 st.pyplot(message['figure'])
+                if 'interpretation' in message:
+                    st.markdown(f'''
+                        <div class="chat-message assistant-message">
+                            <div class="message-content">
+                                <strong>Interprétation :</strong><br>{message['interpretation']}
+                            </div>
+                        </div>
+                    ''', unsafe_allow_html=True)
+
+                    
         st.markdown('</div>', unsafe_allow_html=True)
-
-        # Zone de saisie utilisateur
         user_question = st.chat_input("💭 Posez votre question...")
-
         if user_question:
-            # Ajout du message utilisateur
             st.session_state.messages.append({
                 'role': 'user',
                 'content': user_question
             })
 
             with st.spinner('Analyse en cours...'):
-                sample_data = st.session_state.df.head(50).to_csv(index=False)
-                client = Anthropic(api_key=ANTHROPIC_API_KEY)
+                try:
+                    client = Anthropic(api_key=ANTHROPIC_API_KEY)
+                    conversation_history = format_conversation_history(st.session_state.messages)
+                    buffer = StringIO()
+                    st.session_state.df.info(buf=buffer)
+                    str_info = buffer.getvalue().strip()
+                    
+                    prompt = f"""
+                        Contexte des données :
+                        {str_info}
 
-                prompt = f""" 
-                    Données d'exemple :
-                    {sample_data}
-                    Question : {user_question}
-                    Si l'utilisateur demande "hello", répondez par une salutation et demandez-lui s'il est prêt à commencer l'analyse des données.
-                    Si l'utilisateur demande "describe data", générez une description des données fournies (par exemple, dimensions du dataset, types de colonnes, etc.).
-                    Si l'utilisateur pose une question comme "combien de ...", générez un graphique pertinent à cette question, comme un histogramme ou un graphique en barres.
-                    Si l'utilisateur pose d'autres questions, générez un script Python concis utilisant Matplotlib ou Seaborn pour visualiser les données de manière pertinente.
-                """
+                        Données disponibles : 
+                        {st.session_state.df.head()}
 
-                response = client.messages.create(
-                    model="claude-3-5-sonnet-20240620",
-                    messages=[{"role": "user", "content": prompt}],
-                    max_tokens=300
-                )
+                        Historique de la conversation : 
+                        {conversation_history}
 
-                response_content = response.content[0].text
-                message_with_response = {
-                    'role': 'assistant',
-                    'content': response_content.strip()
-                }
+                        Question actuelle : 
+                        {user_question}
 
-                st.session_state.messages.append(message_with_response)
-                st.rerun()
+                        RÈGLES DE RÉPONSE STRICTES :
+                        1. Ne JAMAIS AFFICHER l'historique de la conversation dans la réponse
+                        2. Pour toute demande de VISUALISATION :
+                        - Fournir uniquement le code Python entre les balises 
+
+                        - Le code doit être exécutable et créer une visualisation claire
+                        - TOUJOURS inclure plt.figure(figsize=(10, 6)) au début
+                        - TOUJOURS ajouter un titre descriptif
+                        - OBLIGATOIREMENT suivre le code d'une section INTERPRETATION
+                        3. L'interprétation doit :
+                        - Décrire les principales tendances observées
+                        - Fournir des valeurs numériques précises
+                        - Identifier les patterns importants
+                        - Mentionner les implications business pertinentes
+                        - Respecter les seuils statistiques standards
+                        4. Pour les questions d'ANALYSE sans visualisation :
+                        - Fournir uniquement une réponse textuelle claire et concise
+                        - Inclure les statistiques pertinentes
+                        - Structurer la réponse de manière logique
+                        FORMAT DE RÉPONSE :
+                        Pour une visualisation :
+                        [CODE]
+                        INTERPRETATION:
+                        [ANALYSE DÉTAILLÉE]
+                        Pour une analyse simple :
+                        [RÉPONSE TEXTUELLE]
+                        """
+                    response = client.messages.create(
+                        model="claude-3-5-sonnet-20240620",
+                        messages=[{"role": "user", "content": prompt}],
+                        max_tokens=8000
+                    )
+                    response_content = response.content[0].text.strip()
+                    code_to_execute = extract_code(response_content)
+
+                    if code_to_execute:
+                        try:
+                            plt.figure(figsize=(10, 6))
+                            print("Code à exécuter:", code_to_execute)  # Ajoutez ce log pour déboguer
+                            exec(code_to_execute, {'plt': plt, 'sns': sns, 'df': st.session_state.df})
+                            plt.tight_layout()
+                            # plt.close()  # Supprimez ou commentez cette ligne
+                            
+                            interpretation = response_content.split("INTERPRETATION:")[-1].strip() if "INTERPRETATION:" in response_content else ""
+                            
+                            message_with_response = {
+                                'role': 'assistant',
+                                'content': f"📊 Visualisation générée",
+                                'figure': plt.gcf(),
+                                'interpretation': interpretation
+                            }
+                        except Exception as e:
+                            st.error(f"Erreur de visualisation : {e}")
+                            message_with_response = {
+                                'role': 'assistant',
+                                'content': "Désolé, je n'ai pas pu générer la visualisation demandée."
+                            }
+                    else:
+                        message_with_response = {
+                            'role': 'assistant',
+                            'content': response_content
+                        }
+
+                    st.session_state.messages.append(message_with_response)
+                    st.rerun()
+                    
+                except Exception as e:
+                    st.error(f"Erreur lors du traitement : {e}")
+
+
+
+def extract_code(response_text):
+    """Extrait le code Python d'un texte généré par le chatbot."""
+    code_blocks = re.findall(r'```python\n(.*?)\n```', response_text, re.DOTALL)
+    return "\n".join(code_blocks) if code_blocks else None
+
 
 
 def main():
     if 'page' not in st.session_state:
         st.session_state.page = "home"
-
     if st.session_state.page == "home":
         create_homepage()
     elif st.session_state.page == "chat":
