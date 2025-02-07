@@ -91,14 +91,14 @@ Voici une vue d'ensemble des fichiers et dossiers principaux du projet :
    poetry run streamlit run chat.py
    ```
 2. **Page d'accueil** : Cliquer sur le bouton pour commencer l'exploration de vos données.
-![homepage](images/accueil.png)
+![accueil](images/accueil.png)
 
 3. **Charger un fichier CSV** : L'application propose un bouton pour effectuer un nettoyage des données avant de permettre l'analyse et la visualisation.
-![homepage](images/chat.png)
-![homepage](images/dataset.png)
+![chatbot](images/chat.png)
+![dataset](images/dataset.png)
 
 4. **Interagir avec le chatbot** pour explorer et visualiser les données.
-![homepage](images/plot.png)
+![plot](images/exemple_plot.png)
 
 
 ## Exemples de requêtes 💡
