@@ -42,7 +42,7 @@ DataViz AI Assistant est une application interactive développée avec **Streaml
    ```
 3. **Installer les dépendances**
    ```bash
-   pip install -r requirements.txt
+   poetry install
    ```
 4. **Configurer la clé API Claude**
    - Créer un fichier `.env` à la racine du projet et y ajouter la clé API :
