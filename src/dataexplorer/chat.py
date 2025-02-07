@@ -333,7 +333,7 @@ def create_chat_interface():
                         RÈGLES DE RÉPONSE STRICTES :
                         1. Ne JAMAIS AFFICHER l'historique de la conversation dans la réponse
                         2. Pour toute demande de VISUALISATION :
-                        - Fournir uniquement le code Python entre les balises 
+                        - Fournir uniquement le code Python entre les balises ```python```
 
                         - Le code doit être exécutable et créer une visualisation claire
                         - TOUJOURS inclure plt.figure(figsize=(10, 6)) au début
@@ -351,17 +351,22 @@ def create_chat_interface():
                         - Structurer la réponse de manière logique
                         FORMAT DE RÉPONSE :
                         Pour une visualisation :
+                        ```python
                         [CODE]
+                        ```
+
                         INTERPRETATION:
                         [ANALYSE DÉTAILLÉE]
                         Pour une analyse simple :
                         [RÉPONSE TEXTUELLE]
                         """
+
                     response = client.messages.create(
                         model="claude-3-5-sonnet-20240620",
                         messages=[{"role": "user", "content": prompt}],
                         max_tokens=8000
                     )
+
                     response_content = response.content[0].text.strip()
                     code_to_execute = extract_code(response_content)
 
