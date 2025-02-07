@@ -98,7 +98,7 @@ Voici une vue d'ensemble des fichiers et dossiers principaux du projet :
 ![dataset](images/dataset.png)
 
 4. **Interagir avec le chatbot** pour explorer et visualiser les données.
-![plot](images/exemple_plot.png)
+![plot](images/exemple_plot.jpeg)
 
 
 ## Exemples de requêtes 💡
